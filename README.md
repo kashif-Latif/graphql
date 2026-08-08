@@ -522,6 +522,51 @@ npm test
 
 ---
 
+## Deployment
+
+`.env` is gitignored, so it is **not** shipped with the code. Create it on the
+server (or set the variables in your process manager) or every Shopify call
+fails with `shopify_not_configured` and chat with `agent_not_configured`.
+
+```bash
+git pull && npm ci
+cat > .env <<'EOF'
+PORT=3000
+NODE_ENV=production
+SHOPIFY_STORE_DOMAIN=your-store.myshopify.com
+SHOPIFY_ADMIN_ACCESS_TOKEN=shpat_…
+SHOPIFY_API_VERSION=2026-07
+AI_MODEL=groq:openai/gpt-oss-120b
+AI_FALLBACK_MODEL=groq:llama-3.1-8b-instant
+AI_API_KEY=gsk_…
+ENABLE_TOOL_TESTER=false
+CORS_ORIGINS=https://your-frontend.example
+EOF
+pm2 restart shopify-agent || pm2 start src/server.js --name shopify-agent
+```
+
+Node does not hot-reload: **restart after every deploy**, or the old routing
+table keeps serving. `GET /api/health` reports what the running process
+actually has:
+
+```json
+{ "status": "ok", "build": 3, "features": ["chat","products","discounts","v1"],
+  "shopifyConfigured": true, "aiConfigured": true }
+```
+
+A stale build, a missing token or a missing LLM key are all visible there —
+check it first when something 404s or 503s.
+
+### Before exposing it publicly
+
+`ENABLE_TOOL_TESTER` defaults to on outside production, and it controls more
+than the tool tester: the browser console at `/`, wide-open CORS, and the
+`diagnostics` block in every response. On a public IP that means anyone can
+run your tools, read your Shopify query costs, and spend your LLM quota
+through `/api/chat`. Set `NODE_ENV=production` (or `ENABLE_TOOL_TESTER=false`),
+list your real origins in `CORS_ORIGINS`, and put the chat endpoints behind
+your own auth or gateway before advertising the URL.
+
 ## Layering
 
 ```

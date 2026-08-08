@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { AppError } from "../utils/errors.js";
 
 function str(name, fallback = undefined) {
   const value = process.env[name];
@@ -84,12 +85,24 @@ export function applyModelCredentials() {
   if (target && !process.env[target]) process.env[target] = env.ai.apiKey;
 }
 
+export function shopifyConfigured() {
+  return Boolean(env.shopify.storeDomain && env.shopify.accessToken);
+}
+
+/**
+ * A missing .env is a deployment mistake, not an internal server error —
+ * report it as such so it is obvious which variable is absent.
+ */
 export function assertShopifyConfig() {
   const missing = [];
   if (!env.shopify.storeDomain) missing.push("SHOPIFY_STORE_DOMAIN");
   if (!env.shopify.accessToken) missing.push("SHOPIFY_ADMIN_ACCESS_TOKEN");
   if (missing.length) {
-    throw new Error(`Missing required Shopify configuration: ${missing.join(", ")}`);
+    throw new AppError(`Missing required Shopify configuration: ${missing.join(", ")}`, {
+      status: 503,
+      code: "shopify_not_configured",
+      publicMessage: `The store connection isn't configured: set ${missing.join(" and ")} in the server's .env and restart.`,
+    });
   }
 }
 

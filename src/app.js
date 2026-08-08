@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-import { env } from "./config/env.js";
+import { env, shopifyConfigured } from "./config/env.js";
 import { logger, timer } from "./utils/logger.js";
 import { apiRateLimit } from "./middleware/rateLimit.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
@@ -140,6 +140,7 @@ export function createApp() {
       // predates these routes" instead of just 404ing.
       build: BUILD,
       features: ["chat", "products", "discounts", "v1"],
+      shopifyConfigured: shopifyConfigured(),
       aiConfigured: agentConfigStatus().configured,
     });
   });
