@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Shopify AI Shopping Assistant — Test Console</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --border: #e3e6ea;
+    --text: #1b1f24;
+    --muted: #667085;
+    --accent: #2f6feb;
+    --accent-soft: #eaf0fe;
+    --ok: #12805c;
+    --bad: #b42318;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a; --panel: #1c2024; --border: #2c3238; --text: #e8eaed;
+      --muted: #98a2b3; --accent: #6aa0ff; --accent-soft: #23304a;
+      --ok: #4ac09a; --bad: #f97066;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  header {
+    padding: 14px 20px; background: var(--panel); border-bottom: 1px solid var(--border);
+    display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 650; }
+  header .status { font-size: 13px; color: var(--muted); }
+  header .status b { color: var(--text); font-weight: 600; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 18px 20px 120px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tab {
+    padding: 7px 14px; border: 1px solid var(--border); background: var(--panel);
+    border-radius: 999px; cursor: pointer; font-size: 14px; color: var(--text);
+  }
+  .tab[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .msg { margin: 0 0 14px; display: flex; }
+  .msg.user { justify-content: flex-end; }
+  .bubble {
+    max-width: 78%; padding: 10px 14px; border-radius: 14px;
+    background: var(--panel); border: 1px solid var(--border); white-space: pre-wrap;
+  }
+  .msg.user .bubble { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .msg.error .bubble { border-color: var(--bad); color: var(--bad); }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 12px; margin: 4px 0 18px; }
+  .card { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); overflow: hidden; }
+  .card img { width: 100%; height: 150px; object-fit: cover; display: block; background: var(--accent-soft); }
+  .card .body { padding: 10px 12px; }
+  .card .pos { font-size: 12px; color: var(--muted); }
+  .card h3 { font-size: 14px; margin: 2px 0 8px; font-weight: 600; line-height: 1.35; }
+  .card ul { margin: 0; padding: 0; list-style: none; font-size: 13px; }
+  .card li { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+  .in { color: var(--ok); } .out { color: var(--bad); }
+  .card a { font-size: 12px; color: var(--accent); text-decoration: none; display: inline-block; margin-top: 8px; }
+
+  .diag {
+    font-size: 12px; color: var(--muted); border: 1px dashed var(--border);
+    border-radius: 8px; padding: 8px 10px; margin: -6px 0 16px;
+    font-family: ui-monospace, Consolas, monospace;
+  }
+  .diag b { color: var(--text); font-weight: 600; }
+  .diag .warn { color: var(--bad); }
+  .diag details { margin-top: 6px; }
+  .diag summary { cursor: pointer; color: var(--accent); }
+  .diag pre { border: 0; background: transparent; padding: 6px 0 0; font-size: 11.5px; }
+
+  .composer {
+    position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel);
+    border-top: 1px solid var(--border); padding: 12px 20px;
+  }
+  .composer .inner { max-width: 1080px; margin: 0 auto; display: flex; gap: 10px; }
+  input[type=text], select, input[type=number] {
+    flex: 1; padding: 11px 13px; border: 1px solid var(--border); border-radius: 10px;
+    background: var(--bg); color: var(--text); font-size: 15px; min-width: 0;
+  }
+  button {
+    padding: 11px 18px; border: 0; border-radius: 10px; background: var(--accent);
+    color: #fff; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); font-weight: 500; }
+  button:disabled { opacity: .55; cursor: default; }
+
+  .suggestions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .suggestions button { background: var(--accent-soft); color: var(--accent); font-size: 13px; padding: 6px 12px; font-weight: 500; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  pre {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px; overflow-x: auto; font-size: 12.5px; margin: 0;
+  }
+  .hint { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+  .banner {
+    display: none; margin: 0 0 16px; padding: 12px 14px; border-radius: 10px;
+    border: 1px solid var(--bad); color: var(--bad); background: var(--panel); font-size: 14px;
+  }
+  .banner.show { display: block; }
+  .banner code { background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🛍️ Shopify AI Shopping Assistant</h1>
+  <span class="status" id="status">checking store…</span>
+  <span class="status">thread <b id="threadLabel">—</b></span>
+  <span class="status">API
+    <input type="text" id="apiUrl" style="flex:0 0 auto;width:190px;padding:5px 9px;font-size:13px" />
+    <button class="ghost" id="reconnect" type="button" style="padding:6px 12px;font-size:13px">Reconnect</button>
+  </span>
+  <button class="ghost" id="newThread" type="button">New conversation</button>
+</header>
+
+<div class="wrap">
+  <div class="banner" id="banner"></div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-panel="chat">Chat (AI)</button>
+    <button class="tab" role="tab" aria-selected="false" data-panel="search">Direct search (no AI)</button>
+    <button class="tab" role="tab" aria-selected="false" data-panel="discounts">Discounts</button>
+    <button class="tab" role="tab" aria-selected="false" data-panel="tools">Tool tester</button>
+  </div>
+
+  <!-- ---------------- CHAT ---------------- -->
+  <section class="panel active" id="panel-chat">
+    <div class="suggestions" id="suggestions"></div>
+    <div id="thread"></div>
+  </section>
+
+  <!-- ---------------- DIRECT SEARCH ---------------- -->
+  <section class="panel" id="panel-search">
+    <p class="hint">Hits <code>GET /api/products/search</code> — the same <code>searchProducts()</code> service the agent tool uses, with no LLM involved.</p>
+    <div class="grid">
+      <div><label for="f-query">query</label><input type="text" id="f-query" placeholder="baby towel" /></div>
+      <div><label for="f-color">color</label><input type="text" id="f-color" placeholder="pink" /></div>
+      <div><label for="f-size">size</label><input type="text" id="f-size" placeholder="1-2 years" /></div>
+      <div><label for="f-age">age (years)</label><input type="number" id="f-age" step="0.25" placeholder="2" /></div>
+      <div><label for="f-min">minPrice</label><input type="number" id="f-min" placeholder="500" /></div>
+      <div><label for="f-max">maxPrice</label><input type="number" id="f-max" placeholder="1500" /></div>
+      <div><label for="f-vendor">vendor</label><input type="text" id="f-vendor" /></div>
+      <div><label for="f-type">productType</label><input type="text" id="f-type" /></div>
+      <div><label for="f-stock">inStock</label>
+        <select id="f-stock"><option value="">any</option><option value="true">true</option><option value="false">false</option></select>
+      </div>
+      <div><label for="f-limit">limit</label><input type="number" id="f-limit" value="5" min="1" max="5" /></div>
+    </div>
+    <div class="row"><button id="runSearch" type="button">Search</button><span class="status" id="searchMeta"></span></div>
+    <div class="cards" id="searchCards"></div>
+    <pre id="searchOut">—</pre>
+  </section>
+
+  <!-- ---------------- DISCOUNTS ---------------- -->
+  <section class="panel" id="panel-discounts">
+    <p class="hint">Hits <code>GET /api/discounts</code> — live store promotions from Shopify's <code>discountNodes</code>. The <code>summary</code> is Shopify's own wording; the agent repeats it rather than inventing terms.</p>
+    <div class="row">
+      <label for="d-active" style="margin:0">
+        <input type="checkbox" id="d-active" checked /> active only
+      </label>
+      <button id="runDiscounts" type="button">Load discounts</button>
+      <span class="status" id="discountMeta"></span>
+    </div>
+    <div id="discountList"></div>
+    <pre id="discountOut">—</pre>
+  </section>
+
+  <!-- ---------------- TOOL TESTER ---------------- -->
+  <section class="panel" id="panel-tools">
+    <p class="hint">Hits <code>POST /api/tools/:toolName</code> (development only — requires <code>ENABLE_TOOL_TESTER=true</code>). Returns the raw normalized tool result.</p>
+    <div class="row">
+      <select id="toolName" style="flex:0 0 220px">
+        <option>search_products</option>
+        <option>get_product</option>
+        <option>get_product_variants</option>
+        <option>check_inventory</option>
+        <option>compare_products</option>
+        <option>get_discounts</option>
+      </select>
+      <button id="runTool" type="button">Run tool</button>
+    </div>
+    <label for="toolBody">request body (JSON)</label>
+    <textarea id="toolBody" rows="7" style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-family:ui-monospace,Consolas,monospace;font-size:13px;">{
+  "query": "baby",
+  "color": "pink",
+  "maxPrice": 1000,
+  "inStock": true
+}</textarea>
+    <pre id="toolOut" style="margin-top:14px">—</pre>
+  </section>
+</div>
+
+<div class="composer" id="composer">
+  <div class="inner">
+    <input type="text" id="input" placeholder="Show me black clothes for a 2 year old under Rs 1500" autocomplete="off" />
+    <button id="send" type="button">Send</button>
+  </div>
+</div>
+
+<script>
+/**
+ * The console may be served by this backend, by VS Code Live Server, or
+ * opened straight from disk — so the API base is discovered, not assumed.
+ */
+let API = localStorage.getItem("apiBase") || location.origin;
+
+const SUGGESTIONS = [
+  "Show me pink products under Rs 1000",
+  "I need a black T-shirt for a 1 year old under Rs 1200",
+  "Show towels for a newborn",
+  "Show baby products between Rs 500 and Rs 1500",
+  "What sizes does the first one have?",
+  "Does the second one come in pink?",
+  "Is the second product available?",
+  "Show me something cheaper"
+];
+
+const $ = (id) => document.getElementById(id);
+let threadId = newThreadId();
+let busy = false;
+
+function newThreadId() {
+  const id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+  $("threadLabel").textContent = id.slice(0, 8);
+  return id;
+}
+
+/* ---------- tabs ---------- */
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
+    document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
+    $("panel-" + tab.dataset.panel).classList.add("active");
+    $("composer").style.display = tab.dataset.panel === "chat" ? "" : "none";
+  });
+});
+
+/* ---------- health ---------- */
+const SERVICE = "shopify-live-product-search-agent";
+
+function banner(html) {
+  $("banner").innerHTML = html;
+  $("banner").classList.add("show");
+}
+
+/** Ports this project is commonly started on, tried in order. */
+function candidateBases() {
+  const seen = new Set();
+  const list = [];
+  const push = (base) => { if (base && !seen.has(base)) { seen.add(base); list.push(base); } };
+  push(localStorage.getItem("apiBase"));
+  if (location.protocol.startsWith("http")) push(location.origin);
+  for (const port of [3000, 3050, 3001, 8080]) {
+    push(`http://localhost:${port}`);
+    push(`http://127.0.0.1:${port}`);
+  }
+  return list;
+}
+
+/** @returns {Promise<object|null>} the health payload if this IS our backend */
+async function probe(base) {
+  try {
+    const res = await fetch(base + "/api/health", { signal: AbortSignal.timeout(2500) });
+    const health = await res.json();
+    return health.service === SERVICE ? health : null;
+  } catch {
+    return null;
+  }
+}
+
+async function connect() {
+  $("banner").classList.remove("show");
+  $("status").textContent = "looking for the backend…";
+
+  let health = null;
+  for (const base of candidateBases()) {
+    // eslint-disable-next-line no-await-in-loop
+    health = await probe(base);
+    if (health) { API = base; break; }
+  }
+
+  $("apiUrl").value = API;
+
+  if (!health) {
+    $("status").textContent = "backend not found";
+    banner(
+      `<b>Can't find the Shopify agent backend.</b> This page is being served from ` +
+      `<code>${escapeHtml(location.origin)}</code>, which is not the API. ` +
+      `Start the server (<code>npm start</code>) and either open the console from the server itself ` +
+      `(<code>http://localhost:3000/</code>) or type its URL in the <b>API</b> box above and hit Reconnect. ` +
+      `Tried: ${candidateBases().map((b) => `<code>${escapeHtml(b)}</code>`).join(", ")}.`
+    );
+    return;
+  }
+
+  localStorage.setItem("apiBase", API);
+
+  if (!health.aiConfigured) {
+    banner(
+      `<b>The Chat tab is disabled until an LLM key is set.</b> Add <code>AI_API_KEY</code> to <code>.env</code> ` +
+      `(provider comes from <code>AI_MODEL</code>) and restart. The other two tabs work without it.`
+    );
+  }
+
+  try {
+    const shop = await (await fetch(API + "/api/health/shopify")).json();
+    $("status").innerHTML = shop.status === "ok"
+      ? `store <b>${escapeHtml(shop.shop || "?")}</b> · API ${escapeHtml(shop.apiVersion || "?")}`
+      : "store unavailable";
+  } catch {
+    $("status").textContent = "store unavailable";
+  }
+}
+
+$("reconnect").addEventListener("click", () => {
+  const value = $("apiUrl").value.trim().replace(/\/+$/, "");
+  if (value) localStorage.setItem("apiBase", value);
+  else localStorage.removeItem("apiBase");
+  connect();
+});
+
+connect();
+
+/* ---------- chat ---------- */
+SUGGESTIONS.forEach((text) => {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = text;
+  b.addEventListener("click", () => { $("input").value = text; send(); });
+  $("suggestions").appendChild(b);
+});
+
+$("send").addEventListener("click", send);
+$("input").addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+$("newThread").addEventListener("click", async () => {
+  try { await postJSON("/api/chat/reset", { threadId }); } catch {}
+  threadId = newThreadId();
+  $("thread").innerHTML = "";
+});
+
+function bubble(role, text) {
+  const wrap = document.createElement("div");
+  wrap.className = "msg " + role;
+  const b = document.createElement("div");
+  b.className = "bubble";
+  b.textContent = text;
+  wrap.appendChild(b);
+  $("thread").appendChild(wrap);
+  window.scrollTo(0, document.body.scrollHeight);
+  return b;
+}
+
+async function send() {
+  const message = $("input").value.trim();
+  if (!message || busy) return;
+  $("input").value = "";
+  bubble("user", message);
+  const pending = bubble("assistant", "…");
+  busy = true; $("send").disabled = true;
+
+  try {
+    const data = await postJSON("/api/chat", { threadId, message });
+    pending.textContent = data.message;
+    if (data.products && data.products.length) renderCards(data.products, $("thread"));
+    if (data.diagnostics) renderDiagnostics(data.diagnostics, $("thread"));
+  } catch (error) {
+    pending.parentElement.classList.add("error");
+    pending.textContent = error.message;
+    if (error.diagnostics) renderDiagnostics(error.diagnostics, $("thread"));
+  } finally {
+    busy = false; $("send").disabled = false;
+    window.scrollTo(0, document.body.scrollHeight);
+  }
+}
+
+/* ---------- direct search ---------- */
+$("runSearch").addEventListener("click", async () => {
+  const params = new URLSearchParams();
+  const add = (key, id) => { const v = $(id).value.trim(); if (v) params.set(key, v); };
+  add("query", "f-query"); add("color", "f-color"); add("size", "f-size");
+  add("age", "f-age"); add("minPrice", "f-min"); add("maxPrice", "f-max");
+  add("vendor", "f-vendor"); add("productType", "f-type");
+  add("inStock", "f-stock"); add("limit", "f-limit");
+
+  $("searchMeta").textContent = "searching…";
+  $("searchCards").innerHTML = "";
+  $("panel-search").querySelectorAll(".diag").forEach((el) => el.remove());
+  try {
+    const res = await fetch(API + "/api/products/search?" + params.toString());
+    const data = await res.json();
+    $("searchOut").textContent = JSON.stringify(data, null, 2);
+    if (!res.ok) throw new Error(data.error?.message || "request failed");
+    $("searchMeta").textContent =
+      `${data.count} product(s) · ${data.meta.pagesFetched} page(s) · ${data.meta.candidateProducts} candidates · ${data.meta.durationMs}ms`;
+    renderCards(
+      data.products.map((p) => ({ ...p, variants: p.matchingVariants })),
+      $("searchCards"),
+      true
+    );
+    if (data.diagnostics) renderDiagnostics(data.diagnostics, $("panel-search"));
+  } catch (error) {
+    $("searchMeta").textContent = error.message;
+  }
+});
+
+/* ---------- discounts ---------- */
+$("runDiscounts").addEventListener("click", async () => {
+  $("discountMeta").textContent = "loading…";
+  $("discountList").innerHTML = "";
+  try {
+    const res = await fetch(API + "/api/discounts?activeOnly=" + $("d-active").checked);
+    const data = await res.json();
+    $("discountOut").textContent = JSON.stringify(data, null, 2);
+    if (!res.ok) throw new Error(data.error?.message || "request failed");
+    $("discountMeta").textContent = `${data.count} discount(s)${data.cached ? " (cached)" : ""}`;
+    data.discounts.forEach((discount) => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.style.marginBottom = "10px";
+      card.innerHTML = `
+        <div class="body">
+          <h3>${escapeHtml(discount.title || "Untitled")}</h3>
+          <div style="font-size:13px">${escapeHtml(discount.summary || "")}</div>
+          <div class="pos" style="margin-top:8px">
+            ${escapeHtml(discount.kind)} ·
+            ${discount.appliesAutomatically ? "applied automatically" : `code: ${escapeHtml(discount.codes.join(", ") || "—")}`} ·
+            ${escapeHtml(discount.status)}
+            ${discount.endsAt ? `· ends ${escapeHtml(discount.endsAt.slice(0, 10))}` : "· no end date"}
+          </div>
+        </div>`;
+      $("discountList").appendChild(card);
+    });
+    if (data.diagnostics) renderDiagnostics(data.diagnostics, $("discountList"));
+  } catch (error) {
+    $("discountMeta").textContent = error.message;
+  }
+});
+
+/* ---------- tool tester ---------- */
+$("runTool").addEventListener("click", async () => {
+  $("toolOut").textContent = "running…";
+  let body;
+  try { body = JSON.parse($("toolBody").value); }
+  catch { $("toolOut").textContent = "Invalid JSON in request body."; return; }
+  try {
+    const res = await fetch(API + "/api/tools/" + $("toolName").value, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    $("toolOut").textContent = JSON.stringify(await res.json(), null, 2);
+  } catch (error) {
+    $("toolOut").textContent = error.message;
+  }
+});
+
+/* ---------- diagnostics ---------- */
+function renderDiagnostics(d, container) {
+  const box = document.createElement("div");
+  box.className = "diag";
+
+  const tools = d.toolDetail.length
+    ? d.toolDetail
+        .map((t) => `${t.name}${t.ok ? "" : " ✗"} ${t.durationMs}ms${t.resultCount === null ? "" : ` → ${t.resultCount}`}`)
+        .join(" · ")
+    : "none";
+
+  const warn = (label, value) =>
+    value > 0 ? `<span class="warn">${label} ${value}</span>` : `${label} ${value}`;
+
+  box.innerHTML = `
+    <div><b>tools</b> ${d.toolCalls} — ${escapeHtml(tools)}</div>
+    <div><b>shopify</b> ${d.shopifyRequests} req ·
+      ${warn("retries", d.shopifyRetries)} ·
+      ${warn("throttled", d.shopifyThrottled)} ·
+      ${warn("errors", d.shopifyErrors)} ·
+      cost ${d.shopifyQueryCost.actual}/${d.shopifyQueryCost.requested}
+      ${d.shopifyQueryCost.throttleStatus
+        ? `· bucket ${d.shopifyQueryCost.throttleStatus.currentlyAvailable}/${d.shopifyQueryCost.throttleStatus.maximumAvailable}`
+        : ""}
+      · ${d.shopifyDurationMs}ms</div>
+    <div><b>search</b> ${d.searches} · pages ${d.pagesFetched} · deep-variant ${d.deepVariantFetches}
+      · candidates ${d.candidateProducts} → final ${d.finalProducts}</div>
+    <div><b>llm</b> ${d.llmCalls} calls · ${warn("retries", d.llmRetries)} ·
+      ${warn("rate-limited", d.llmRateLimited)} · ${d.llmDurationMs}ms</div>
+    <div><b>total</b> ${d.totalDurationMs}ms · request ${escapeHtml((d.requestId || "").slice(0, 8))}</div>
+    <details><summary>full trace</summary><pre>${escapeHtml(JSON.stringify(d, null, 2))}</pre></details>`;
+
+  container.appendChild(box);
+  window.scrollTo(0, document.body.scrollHeight);
+}
+
+/* ---------- shared ---------- */
+function renderCards(products, container, inline) {
+  const grid = inline ? container : document.createElement("div");
+  if (!inline) grid.className = "cards";
+  products.forEach((product, index) => {
+    const card = document.createElement("div");
+    card.className = "card";
+    const variants = (product.variants || []).slice(0, 4).map((v) => `
+      <li>
+        <span>${escapeHtml(v.title || "—")}</span>
+        <span class="${v.available ? "in" : "out"}">Rs ${v.price ?? "—"}</span>
+      </li>`).join("");
+    card.innerHTML = `
+      ${product.image ? `<img src="${escapeAttr(product.image)}" alt="" />` : ""}
+      <div class="body">
+        <div class="pos">#${index + 1}</div>
+        <h3>${escapeHtml(product.title || "")}</h3>
+        <ul>${variants}</ul>
+        ${product.url ? `<a href="${escapeAttr(product.url)}" target="_blank" rel="noreferrer">${escapeHtml(product.url)}</a>` : ""}
+      </div>`;
+    grid.appendChild(card);
+  });
+  if (!inline) {
+    container.appendChild(grid);
+    window.scrollTo(0, document.body.scrollHeight);
+  }
+}
+
+async function postJSON(path, body) {
+  const res = await fetch(API + path, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const error = new Error(data.error?.message || `Request failed (${res.status})`);
+    error.diagnostics = data.diagnostics;
+    throw error;
+  }
+  return data;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function escapeAttr(value) { return escapeHtml(value); }
+</script>
+</body>
+</html>
