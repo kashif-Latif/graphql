@@ -11,6 +11,7 @@ import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { withTrace, summarizeTrace, endTrace } from "./utils/trace.js";
 import { productsRouter } from "./routes/products.routes.js";
 import { discountsRouter } from "./routes/discounts.routes.js";
+import { v1Router } from "./routes/v1.routes.js";
 import { chatRouter } from "./routes/chat.routes.js";
 import { toolsRouter } from "./routes/tools.routes.js";
 import { shopifyGraphQL } from "./shopify/client.js";
@@ -18,6 +19,8 @@ import { SHOP_PROBE_QUERY } from "./shopify/queries.js";
 import { agentConfigStatus } from "./agent/agent.js";
 
 const SERVICE_NAME = "shopify-live-product-search-agent";
+/** Bump when routes change, so clients can spot a stale running process. */
+const BUILD = 3;
 
 export function createApp() {
   const app = express();
@@ -46,19 +49,33 @@ export function createApp() {
   );
   app.use(express.json({ limit: "32kb" }));
 
-  // Dev only: let the test console call this API when it is being served from
-  // somewhere else (VS Code Live Server, file://, another port). Never enabled
-  // in production, where the browser and API share an origin.
-  if (env.enableToolTester) {
-    app.use((req, res, next) => {
-      res.setHeader("Access-Control-Allow-Origin", req.get("origin") || "*");
-      res.setHeader("Vary", "Origin");
-      res.setHeader("Access-Control-Allow-Headers", "content-type, x-request-id");
-      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-      if (req.method === "OPTIONS") return res.sendStatus(204);
-      next();
-    });
-  }
+  /**
+   * CORS.
+   *  - dev: everything is open so the test console works when served from
+   *    VS Code Live Server, file://, or another port.
+   *  - prod: only the public /api/v1 API, and only for the origins listed in
+   *    CORS_ORIGINS ("*" allows any).
+   */
+  app.use((req, res, next) => {
+    const origin = req.get("origin");
+    const isPublicApi = req.path.startsWith("/api/v1/");
+    const allowedByConfig =
+      env.corsOrigins.includes("*") || (origin && env.corsOrigins.includes(origin));
+
+    const allow = env.enableToolTester || (isPublicApi && allowedByConfig);
+    if (!allow) return next();
+
+    res.setHeader(
+      "Access-Control-Allow-Origin",
+      env.corsOrigins.includes("*") && !env.enableToolTester ? "*" : origin || "*"
+    );
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Headers", "content-type, x-request-id");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Expose-Headers", "x-thread-id, x-product-count, x-request-id");
+    if (req.method === "OPTIONS") return res.sendStatus(204);
+    next();
+  });
 
   // Static test console at GET / — dev only, same gate as the tool tester.
   if (env.enableToolTester) {
@@ -80,7 +97,12 @@ export function createApp() {
 
       // In dev, the same summary is attached to the JSON body so it is
       // visible in the browser console without reading server logs.
-      if (env.enableToolTester) {
+      // The public /api/v1 contract stays clean: diagnostics only on request.
+      const wantsDiagnostics = req.path.startsWith("/api/v1/")
+        ? req.query.debug === "true" || req.query.debug === "1"
+        : true;
+
+      if (env.enableToolTester && wantsDiagnostics) {
         const originalJson = res.json.bind(res);
         res.json = (body) => {
           const diagnostics = summarizeTrace(req.requestId);
@@ -111,7 +133,15 @@ export function createApp() {
   // Cheap: no Shopify call. `service` lets the test console confirm it is
   // talking to THIS backend and not another app on the same port.
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", service: SERVICE_NAME, aiConfigured: agentConfigStatus().configured });
+    res.json({
+      status: "ok",
+      service: SERVICE_NAME,
+      // Lets a client tell "wrong server" apart from "stale server that
+      // predates these routes" instead of just 404ing.
+      build: BUILD,
+      features: ["chat", "products", "discounts", "v1"],
+      aiConfigured: agentConfigStatus().configured,
+    });
   });
 
   // Separate, deliberately more expensive connectivity check.
@@ -134,6 +164,9 @@ export function createApp() {
       res.status(503).json({ status: "unavailable" });
     }
   });
+
+  // Public integration API — JSON / raw text / HTML renderings.
+  app.use("/api/v1", v1Router);
 
   app.use("/api/products", apiRateLimit, productsRouter);
   app.use("/api/discounts", apiRateLimit, discountsRouter);

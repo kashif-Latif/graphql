@@ -54,6 +54,15 @@ export const env = {
   },
 
   enableToolTester: bool("ENABLE_TOOL_TESTER", str("NODE_ENV", "development") !== "production"),
+
+  /**
+   * Origins allowed to call the public /api/v1 integration API from a browser.
+   * Comma-separated, or "*" to allow any. Empty means same-origin only.
+   */
+  corsOrigins: (str("CORS_ORIGINS", "") || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
 };
 
 /**
