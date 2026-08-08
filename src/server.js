@@ -4,7 +4,7 @@ import { logger } from "./utils/logger.js";
 
 const app = createApp();
 
-const server = app.listen(env.port, () => {
+const server = app.listen(env.port, "0.0.0.0",() => {
   logger.info("server.started", {
     port: env.port,
     nodeEnv: env.nodeEnv,
